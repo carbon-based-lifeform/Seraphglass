@@ -1,11 +1,12 @@
 ## Interface: 16001
 ## Title: Seraphglass
-## Notes: Liquid orbs, unified inventory, four angel action bars and dark meter
+## Notes: Liquid orbs, unified inventory, four angel action bars and dark fantasy details
 ## Author: RothUI fill textures by zork; new orb artwork and Forever port
-## Version: 0.13.0-beta
+## Version: 0.14.0-beta
 ## X-Source: https://github.com/zorker/rothui/tree/master/wow12.0
 
 Seraphglass.lua
 SeraphglassInventory.lua
 SeraphglassActionBars.lua
 SeraphglassDamageMeter.lua
+SeraphglassRothDetails.lua

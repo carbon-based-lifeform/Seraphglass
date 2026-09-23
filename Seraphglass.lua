@@ -306,6 +306,7 @@ mover:Hide()
 local hideBlizzardPlayer = true
 local pendingBlizzardPlayer = false
 local playerFrameHooked = false
+local playerFrameDriver = false
 local function updateBlizzardPlayer()
   if not PlayerFrame then return end
   if InCombatLockdown and InCombatLockdown() then
@@ -314,7 +315,12 @@ local function updateBlizzardPlayer()
   end
   pendingBlizzardPlayer = false
   if hideBlizzardPlayer then
-    if not playerFrameHooked and hooksecurefunc then
+    -- The secure visibility driver survives combat and Blizzard's own Show
+    -- calls. A Show hook alone cannot hide a protected unit frame in combat.
+    if RegisterStateDriver and not playerFrameDriver then
+      RegisterStateDriver(PlayerFrame, "visibility", "hide")
+      playerFrameDriver = true
+    elseif not playerFrameHooked and hooksecurefunc then
       playerFrameHooked = true
       hooksecurefunc(PlayerFrame, "Show", function(frame)
         if hideBlizzardPlayer then
@@ -328,6 +334,10 @@ local function updateBlizzardPlayer()
     end
     PlayerFrame:Hide()
   else
+    if playerFrameDriver and UnregisterStateDriver then
+      UnregisterStateDriver(PlayerFrame, "visibility")
+      playerFrameDriver = false
+    end
     PlayerFrame:Show()
   end
 end
@@ -398,16 +408,18 @@ for _, event in ipairs({
   "UNIT_HEAL_PREDICTION", "UNIT_ABSORB_AMOUNT_CHANGED",
   "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
   "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
-  "PLAYER_REGEN_ENABLED",
+  "PLAYER_REGEN_ENABLED", "PLAYER_LOGIN", "ADDON_LOADED",
 }) do
   events:RegisterEvent(event)
 end
 events:SetScript("OnEvent", function(_, event, unit)
-  if unit and unit ~= "player" then return end
-  if event == "PLAYER_ENTERING_WORLD" then
+  if event:sub(1, 5) == "UNIT_" and unit ~= "player" then return end
+  if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
     updateHealth(true)
     updatePower()
     if hideBlizzardPlayer then updateBlizzardPlayer() end
+  elseif event == "ADDON_LOADED" then
+    if hideBlizzardPlayer and PlayerFrame then updateBlizzardPlayer() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if pendingBlizzardPlayer then updateBlizzardPlayer() end
     updatePrediction()

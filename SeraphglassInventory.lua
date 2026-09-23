@@ -13,42 +13,96 @@ local function ensureCombined()
   end
 end
 
--- A cross-shaped paper doll: armor through the center, weapons across its
--- middle, and accessories along the arms and lower edge.
+-- Five compact rows keep every slot inside the dark part of the painting.
+-- Armor forms the center, weapons flank the legs, and jewelry fills the foot.
 local positions = {
-  { "HeadSlot",              0,  -80 },
-  { "NeckSlot",            -88,  -80 },
-  { "ShoulderSlot",      -130, -122 },
-  { "ChestSlot",            0, -122 },
-  { "BackSlot",           130, -122 },
-  { "WristSlot",         -130, -164 },
-  { "WaistSlot",            0, -164 },
-  { "HandsSlot",          130, -164 },
-  { "MainHandSlot",      -170, -206 },
-  { "LegsSlot",             0, -206 },
-  { "SecondaryHandSlot",  170, -206 },
-  { "Finger0Slot",        -90, -248 },
-  { "FeetSlot",             0, -248 },
-  { "Finger1Slot",         90, -248 },
-  { "RangedSlot",        -165, -290 },
-  { "Trinket0Slot",       -60, -290 },
-  { "TabardSlot",           0, -290 },
-  { "Trinket1Slot",        60, -290 },
-  { "ShirtSlot",          165, -290 },
+  { "NeckSlot", -124, -98, "Neck" }, { "RangedSlot", -62, -98, "Ranged" },
+  { "HeadSlot", 0, -98, "Head" }, { "TabardSlot", 62, -98, "Tabard" },
+  { "BackSlot", 124, -98, "Back" },
+  { "ShoulderSlot", -124, -148, "Shoulder" },
+  { "ChestSlot", 0, -148, "Chest" }, { "ShirtSlot", 124, -148, "Shirt" },
+  { "WristSlot", -124, -198, "Wrist" },
+  { "WaistSlot", 0, -198, "Waist" }, { "HandsSlot", 124, -198, "Hands" },
+  { "MainHandSlot", -124, -248, "Main Hand" },
+  { "LegsSlot", 0, -248, "Legs" }, { "SecondaryHandSlot", 124, -248, "Off Hand" },
+  { "Finger0Slot", -124, -298, "Ring 1" },
+  { "Trinket0Slot", -62, -298, "Trinket 1" },
+  { "FeetSlot", 0, -298, "Feet" },
+  { "Trinket1Slot", 62, -298, "Trinket 2" },
+  { "Finger1Slot", 124, -298, "Ring 2" },
 }
 
 local function addEquipmentSlots()
   for _, entry in ipairs(positions) do
-    local slotName, x, y = entry[1], entry[2], entry[3]
-    if slotName ~= "RangedSlot" or (C_PaperDollInfo and C_PaperDollInfo.IsRangedSlotShown()) then
-      -- The prefix is exactly nine characters: Forever's slot template
-      -- resolves the equipment name with strsub(button:GetName(), 10).
-      local template = x < 0 and "PaperDollItemSlotButtonLeftTemplate"
-        or (x > 0 and "PaperDollItemSlotButtonRightTemplate" or "PaperDollItemSlotButtonBottomTemplate")
-      local button = CreateFrame("ItemButton", "SeraphglassGear_" .. slotName, equipment, template)
-      button:ClearAllPoints()
+    local slotName, x, y, label = entry[1], entry[2], entry[3], entry[4]
+    local getSlot = C_PaperDollInfo and C_PaperDollInfo.GetInventorySlotInfo or GetInventorySlotInfo
+    local slotID, emptyTexture
+    if getSlot then slotID, emptyTexture = getSlot(slotName) end
+    local rangedVisible = slotName ~= "RangedSlot" or not C_PaperDollInfo
+      or not C_PaperDollInfo.IsRangedSlotShown or C_PaperDollInfo.IsRangedSlotShown()
+    if slotID and rangedVisible then
+      -- PaperDollItemSlotButtonTemplate also registers itself in Blizzard's
+      -- private slot table; using it here can overwrite the real character
+      -- buttons. Plain ItemButtonTemplate keeps the inventory interactions.
+      local button = CreateFrame("ItemButton", "SeraphglassGear" .. slotName, equipment, "ItemButtonTemplate")
+      button:SetID(slotID)
       button:SetSize(38, 38)
       button:SetPoint("CENTER", root, "TOP", x, y)
+      button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      button:RegisterForDrag("LeftButton")
+      local icon = button.icon or button.Icon or _G[button:GetName() .. "IconTexture"]
+      if not icon then
+        icon = button:CreateTexture(nil, "ARTWORK")
+        icon:SetAllPoints(button)
+        button.icon = icon
+      end
+      local caption = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      caption:SetPoint("TOP", button, "BOTTOM", 0, -1)
+      caption:SetWidth(60)
+      caption:SetText(label)
+      caption:SetTextColor(0.93, 0.76, 0.48)
+      local function refresh()
+        local texture = GetInventoryItemTexture("player", slotID)
+        if issecretvalue and issecretvalue(texture) then
+          icon:SetTexture(texture)
+          icon:SetDesaturated(false)
+        else
+          icon:SetTexture(texture or emptyTexture)
+          icon:SetDesaturated(texture == nil)
+        end
+        if SetItemButtonCount then SetItemButtonCount(button, 0) end
+      end
+      button:SetScript("OnShow", refresh)
+      button:SetScript("OnEvent", function(_, event, changedID)
+        if event ~= "PLAYER_EQUIPMENT_CHANGED" or (issecretvalue and issecretvalue(changedID))
+            or changedID == slotID then refresh() end
+      end)
+      button:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+      button:RegisterEvent("PLAYER_ENTERING_WORLD")
+      button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetInventoryItem("player", slotID)
+        GameTooltip:Show()
+      end)
+      button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      button:SetScript("OnClick", function(_, mouseButton)
+        local link = GetInventoryItemLink("player", slotID)
+        if not (issecretvalue and issecretvalue(link)) and link
+            and IsModifiedClick and IsModifiedClick() and HandleModifiedItemClick then
+          HandleModifiedItemClick(link)
+        elseif mouseButton == "RightButton" then
+          if UseInventoryItem then UseInventoryItem(slotID) end
+        elseif PickupInventoryItem then
+          PickupInventoryItem(slotID)
+        end
+      end)
+      button:SetScript("OnDragStart", function()
+        if PickupInventoryItem then PickupInventoryItem(slotID) end
+      end)
+      button:SetScript("OnReceiveDrag", function()
+        if PickupInventoryItem then PickupInventoryItem(slotID) end
+      end)
+      refresh()
     end
   end
 end
@@ -125,7 +179,7 @@ local function closeWindow()
 end
 
 local function initialize()
-  if initialized or not (ContainerFrameCombinedBags and PaperDollFrame and PaperDollItemSlotButton_OnLoad) then return end
+  if initialized or not (ContainerFrameCombinedBags and (C_PaperDollInfo or GetInventorySlotInfo)) then return end
   if InCombatLockdown and InCombatLockdown() then return end
   initialized = true
   bag = ContainerFrameCombinedBags
