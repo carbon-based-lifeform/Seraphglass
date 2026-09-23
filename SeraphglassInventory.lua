@@ -1,6 +1,6 @@
 -- One inventory window with Forever's native bag and equipment item buttons.
 -- The CharacterFrame and its 3D model are never opened by the B key.
-local ADDON = ...
+local ADDON, S = ...
 local ART = "Interface\\AddOns\\" .. ADDON .. "\\media\\eternal_inventory_unified.png"
 local WIDTH, EQUIPMENT_HEIGHT, FOOTER = 520, 352, 20
 local initialized, layingOut = false, false
@@ -43,8 +43,8 @@ local function addEquipmentSlots()
     if slotID and rangedVisible then
       -- PaperDollItemSlotButtonTemplate also registers itself in Blizzard's
       -- private slot table; using it here can overwrite the real character
-      -- buttons. Plain ItemButtonTemplate keeps the inventory interactions.
-      local button = CreateFrame("ItemButton", "SeraphglassGear" .. slotName, equipment, "ItemButtonTemplate")
+      -- buttons. The intrinsic ItemButton provides its own visual regions.
+      local button = CreateFrame("ItemButton", "SeraphglassGear" .. slotName, equipment)
       button:SetID(slotID)
       button:SetSize(38, 38)
       button:SetPoint("CENTER", root, "TOP", x, y)
@@ -149,6 +149,7 @@ end
 
 local function layOut()
   if not bag or not bag:IsShown() or layingOut then return end
+  if InCombatLockdown and InCombatLockdown() then return end
   layingOut = true
   root:SetSize(WIDTH, EQUIPMENT_HEIGHT + bag:GetHeight() + FOOTER)
   -- Scale both sections together if the complete panel is taller than
@@ -179,9 +180,8 @@ local function closeWindow()
 end
 
 local function initialize()
-  if initialized or not (ContainerFrameCombinedBags and (C_PaperDollInfo or GetInventorySlotInfo)) then return end
+  if initialized or not (ContainerFrameCombinedBags and ((C_PaperDollInfo and C_PaperDollInfo.GetInventorySlotInfo) or GetInventorySlotInfo)) then return end
   if InCombatLockdown and InCombatLockdown() then return end
-  initialized = true
   bag = ContainerFrameCombinedBags
 
   -- Root remains shown without art while bags are closed, so the client's
@@ -210,24 +210,41 @@ local function initialize()
 
   -- B retains the native ToggleBackpack/ToggleAllBags behavior, using
   -- Forever's built-in combined mode for the lower item grid.
+  initialized = true
+  S.Report("Inventory", "ready: unified equipment + bags")
   ensureCombined()
   if bag:IsShown() then openWindow() end
 end
 
+local failed = false
+local function tryInitialize()
+  if failed then return end
+  if not initialized then S.Report("Inventory", "waiting for native combined bags / out of combat") end
+  if not S.Run("Inventory", initialize) then failed = true end
+end
+S.commands.bags = function()
+  tryInitialize()
+  if initialized then
+    ensureCombined()
+    ToggleBackpack()
+  else S.Status() end
+end
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("PLAYER_REGEN_ENABLED")
 loader:RegisterEvent("ADDON_LOADED")
 loader:RegisterEvent("CVAR_UPDATE")
+loader:RegisterEvent("VARIABLES_LOADED")
 loader:SetScript("OnEvent", function(_, event, name)
   if event == "CVAR_UPDATE" then
     if name and name:lower() == "combinedbags" then ensureCombined() end
   else
-    initialize()
+    tryInitialize()
+    if initialized then ensureCombined() end
     if event == "PLAYER_REGEN_ENABLED" then
       ensureCombined()
       if bag and bag:IsShown() then openWindow() end
     end
   end
 end)
-initialize()
+tryInitialize()

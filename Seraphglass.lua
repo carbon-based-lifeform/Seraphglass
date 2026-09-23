@@ -1,7 +1,7 @@
 -- Seraphglass: a small, independent orb HUD built on RothUI's fill textures.
 -- Keep health and power as opaque values. Forever's combat values may be secret:
 -- status bars can receive them, but Lua must not compare or calculate with them.
-local ADDON = ...
+local ADDON, S = ...
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\media\\"
 
 local hud = CreateFrame("Frame", "SeraphglassHUD", UIParent)
@@ -99,6 +99,7 @@ local function orb(frame, color, artFile, artOffset)
 end
 
 local health = orb(left, { 0.75, 0.05, 0.03 }, "eternal_frame_left.png", -13)
+S.healthOrb = left
 local power = orb(right, { 0.05, 0.2, 0.85 }, "eternal_frame_right.png", 13)
 
 -- The loss bars share the liquid geometry. They sit behind the opaque
@@ -399,7 +400,7 @@ local function updatePower()
   local color = powerColors[token] or powerColors.MANA
   power:SetStatusBarColor(color[1], color[2], color[3])
   power:SetMinMaxValues(0, UnitPowerMax("player", powerID))
-  power:SetValue(UnitPower("player", powerID))
+  power:SetValue(UnitPower("player", powerID), Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut)
 end
 
 local events = CreateFrame("Frame")
@@ -440,7 +441,9 @@ SLASH_SERAPHGLASS1 = "/sgui"
 SLASH_SERAPHGLASS2 = "/seraphglass"
 SlashCmdList.SERAPHGLASS = function(message)
   local command, argument = (message or ""):match("^(%S*)%s*(.-)%s*$")
-  if command == "show" then
+  if S.commands[command] then
+    S.commands[command](argument)
+  elseif command == "show" then
     hud:Show()
   elseif command == "hide" then
     hud:Hide()
@@ -476,3 +479,5 @@ SlashCmdList.SERAPHGLASS = function(message)
     print("Seraphglass: /sgui show | hide | art | scale 0.5-1.5 | unlock | lock | playerframe hide/show")
   end
 end
+
+S.Report("Orbs", "ready")

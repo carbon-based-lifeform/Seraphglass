@@ -1,27 +1,68 @@
-# Seraphglass (beta UI port)
+# Seraphglass — Forever 0.15.0-beta
 
-A standalone health and power orb HUD using placement and fill textures from [zork's RothUI `wow12.0` oUF_Diablo](https://github.com/zorker/rothui/tree/master/wow12.0/oUF_Diablo) and `rModelOrbConfig`. The original sculpted figure and glass frame art takes the supplied Path of Exile 1 screenshot as a visual reference. A single inventory window puts equipment above the combined bag grid. Four five-button action bars flank a painted angel with spread arms and wings; the native Damage Meter uses dark metal, gold and crimson colors. No external addon or oUF installation is required. The beta interface target is `16001` (Forever 1.60.1).
+Dark fantasy UI for World of Warcraft Forever: reflective liquid orbs, painted angel artwork, a unified equipment/inventory window, four five-button action rows, and bronze/crimson native UI accents. Built from [RothUI wow12.0](https://github.com/zorker/rothui/tree/master/wow12.0), with no external oUF dependency.
 
-## Install
+## Install this build
 
-Clone this repository into `World of Warcraft\_classic_beta_\Interface\AddOns\Seraphglass`, or download its ZIP and rename the extracted folder to `Seraphglass` before placing it in `AddOns`. The file should end up at `...\AddOns\Seraphglass\Seraphglass.toc`. Enable **Seraphglass** on the character selection AddOns screen and enter the game.
+1. Exit WoW. Replace the existing `Interface/AddOns/Seraphglass` folder with this version. Disable/remove the older `RothForever` copy so both cannot load together.
+2. The path must end in `AddOns/Seraphglass/Seraphglass.toc`, with `media` beside the Lua files. A GitHub ZIP's `Seraphglass-main` folder must be renamed to `Seraphglass`.
+3. Enable Seraphglass and enter the game. Chat should say **Seraphglass 0.15.0-beta loaded**. Run `/sgui status` to check the version, client build, and each module.
+4. Press **B**. Equipment and bags should open together in the angel frame. `/sgui bags` also toggles the window and reports initialization problems.
 
-Remove the old `RothForever` addon folder before installing Seraphglass so both interfaces do not load at once. Commands: `/sgui hide`, `/sgui show`, `/sgui art`, `/sgui scale 0.8`, `/sgui unlock` (drag the center handle), `/sgui lock`, and `/sgui playerframe hide` or `show`. `/seraphglass` is also accepted. The orbs support left click to target yourself, right click for the player menu, and a hover tooltip. Blizzard's player frame is hidden by default; `/sgui playerframe show` restores it for the current session. If the player frame cannot change in combat, the command takes effect when combat ends. All choices and positions are session only because SavedVariables restoration has been reported broken in the current Forever beta. Check the actual client interface with `/run print(select(4, GetBuildInfo()))` after updates; change the `.toc` interface if the game reports an out-of-date addon.
+Target interface: `16001`. Implementation checked against Blizzard's **forever branch**, client `1.60.1.69977`, source commit `c6e89983189e4f626f549204a23c2d2bea93080a`. This is a beta client; in-game validation is still required.
 
-Press **B** or click the bag icon to toggle the single unified window. Equipment occupies five aligned rows above the native combined bag grid. Head, Chest, Waist, Legs and Feet run down the middle; Main Hand and Off Hand flank Legs, while rings and trinkets fill the bottom row. Small captions identify empty equipment slots. Each button reads its own explicit equipment slot ID and shows the equipped item icon rather than inheriting Blizzard's character-frame slot registration. Click and drag to move items, right click to use an equipped item, and hover for its native tooltip. No 3D character model appears. The addon enables Blizzard's combined bags preference; bag search, sorting and money remain native. The whole window scales to fit shorter screens. Blizzard's Character panel remains available when opened separately with its own key binding.
+## Fixed in 0.15
 
-Four Blizzard action bars each show five skill buttons: MainActionBar over MultiBarBottomLeft on the left; MultiBarBottomRight over MultiBarRight on the right. The left and right pairs surround an original painted angel; her head fills the middle opening, with her arms and wings spanning the space behind both pairs. Each button has a thin aged-gold outline. The remaining action, pet and stance bars retain simple button outlines and their normal positions. Blizzard still controls spell icons, drag and drop, key bindings, cooldowns and paging. The addon enables the three additional bars in Blizzard's action bar settings if needed, and reapplies the five-button layout after Edit Mode and outside combat. This 20-slot arrangement overrides these four bars' Edit Mode size and position for the current session; Blizzard's Edit Mode icon-count slider itself starts at six. Buttons six through twelve of these four native bars are hidden by the arrangement, so place spells you want displayed in slots one through five. Bar visibility preferences enabled by the addon can remain enabled after disabling it.
+The custom equipment buttons requested a nonexistent `ItemButtonTemplate`. Forever defines `ItemButton` as an intrinsic type; passing the nonexistent template could abort inventory initialization before bag hooks were installed. The port now uses that intrinsic directly, waits for native bags and combat to finish, and marks initialization complete only after the unified frame is connected. Failures are printed in chat and included in `/sgui status`.
 
-Blizzard's Damage Meter receives dark crimson and metal color accents on its native frame, with fine border lines and no painted figures. Its damage bars, class colors, rankings, controls, drilling into results and Edit Mode resize behavior remain native. The colors also apply to secondary Damage Meter windows when they open. If the Forever beta does not provide the native Damage Meter window, this skin does nothing.
+Each equipment slot uses its own explicit inventory ID and reads its icon from `GetInventoryItemTexture`. Empty slots show the correct placeholder. Head, Chest, Waist, Legs and Feet form the center column; weapons flank Legs, with rings and trinkets at the bottom. The native combined inventory grid sits below, with native search, sorting, tooltips, money, and item interaction. There is no 3D model. Protected layout changes defer until combat ends.
 
-Adapted RothUI `rLayout` details tint the native target, focus and boss frames, the minimap border, quest header and tooltip in muted bronze. Chat gets a restrained dark backing and a clearer active edit box. Starting a focus cast sounds the RothUI focus bell. Blizzard's player unit frame is hidden with a secure visibility driver so it stays hidden through combat and game frame refreshes. `/sgui playerframe show` restores it for the session. The original `rLayout` action-bar visibility drivers are omitted because they would hide Seraphglass's four main bars. Model viewers, editable 3D orbs and oUF's duplicate unit frames remain separate projects and are not loaded into this standalone addon.
+Empty action buttons were disappearing because the native `SetShowGrid` path ignores insecure callers. The addon now sets the supported grid attribute outside combat. All four rows show their first five slots even when empty. Native spell execution, bindings, paging, cooldowns and vehicle visibility are retained. Slots 6–12 on these four bars are hidden; move desired actions to the first five slots. Other enabled bars keep their positions and receive the same thin bronze wrapping.
 
-The health orb shows incoming heals in green above the current fill and shields in Blizzard's blue shield texture. Both are capped at the glass boundary; a shield that exceeds remaining health lights the top edge when health values can be read. On damage, health drops immediately, a short white flash shows the previous level, and a deep red fill trails down behind it over about a second. Forever can hide health numbers from addons during combat. In that case, the red fill holds briefly before using the game's native status bar animation; the brief white flash may also appear on healing updates. No combat health number is used in Lua arithmetic.
+## RothUI feature coverage
 
-## Scope and test status
+| Upstream component | Seraphglass implementation |
+| --- | --- |
+| `oUF_Diablo` player health/power | Liquid glass orbs, power colors, native power interpolation, self-target/menu/tooltip, movable HUD. Instant health changes plus white flash and slow crimson trail follow the requested design. |
+| Player low-health highlight | Native color curve adds a crimson glass warning below 31% health; readable-health fallback on clients without curves. |
+| Player dispellable-debuff highlight | Native `CustomAuraContainerTemplate` handles `HARMFUL\|DISPELLABLE` and colors the glass by debuff type, including restricted aura handling inside Blizzard's engine. |
+| Player absorbs | Blizzard shield texture, incoming healing, clipped orb boundary and readable-value overshield indication. |
+| `rLayout/chat` | Dark backing, edit box above chat, free arrow-key movement, hidden chat button strips, temporary-window styling. |
+| `rLayout/darkmode` | Bronze target/focus/boss/minimap/quest/status-bar accents, compact party/raid health blending, buff borders, action-button wraps, smaller additive spell-proc overlays. |
+| `rLayout/tooltip` | Bronze framing and class/reaction name colors; native guild, level, AFK and item information retained. No secret tooltip strings are rebuilt. |
+| `rLayout/spellalert` | Focus cast/channel/empower sound, optional via `/sgui option focus off`. |
+| `rLayout/vignette` | Local chat and screen alerts for minimap vignettes, per-zone deduplication and upstream name exclusions. Feature-gated when the API is absent. |
+| `rLayout/statedriver` | Optional Ctrl visibility for bags/micro menu and Alt for tracking bars. The four main rows retain their native visibility; literal upstream Shift/combat bar rules would conflict with the requested layout. |
+| Options | Saved alert/visibility toggles and version/module diagnostics. HUD position/scale remain session-only. |
 
-This package shows original PoE-inspired sculpted art and two reflective glass orbs with slowly counter-rotating liquid highlights. The 190-unit liquid globes remain unchanged; each figure frame is 230 units and sits behind the globe so its inner rim cannot make the liquid look smaller. The right figure is a slimmer adult woman in a raised-arm pose with a loose wrist shackle and classical drapery. The inventory frame retains its painted adult angel women with white wings, gilded armor and crimson drapery. Its dark center leaves gear and bag icons readable. The four main bars frame an original angel painting; the remaining bars and Damage Meter use color accents. The liquid overlay is clipped to each status bar's visible fill without reading or doing arithmetic on protected combat values. Blizzard's player frame is hidden by default. Cast bar, buffs, target and raid frames are unchanged. It does not port the model scenes, orb editor, oUF unit frames, all of rLayout's modules, or the older oUF elements and small addons supplied separately. The latter are from an older WoW API, and installing them unchanged would cause errors.
+The `wow12.0/oUF_Diablo` layout spawns the **player only**; its party code is commented out. There is no additional target/focus/raid layout waiting to be copied from this folder. Those frames retain Blizzard's functionality with Seraphglass styling.
 
-The 0.1 orb and art build was confirmed visually in a Forever 1.60.1.69913 screenshot, and the user reported no Lua errors. Version 0.3's liquid and glass art was confirmed in the supplied game screenshot. The updated equipment bindings, secure player-frame visibility, RothUI details, action bars, Damage Meter colors, and health predictions and animations still need an in-game visual and interaction check. Lua syntax and simulated action-button styling and unified-window behavior were checked outside WoW. If the new version fails to load, enable Lua errors with `/console scriptErrors 1`, reload, and retain the exact error and client build for the next iteration. The beta may change addon API behavior.
+`rModelOrbTemplate`, `rModelOrbConfig`, `rModelDB` and `rModelViewer` implement configurable 3D model scenes and their authoring tools. Seraphglass replaces their orb presentation with the approved liquid/glass art; their editors and model database are not bundled. `rRadialProgressTest` and `rSettingsExample` are development examples. Older standalone oUF elements, LootRollMover and ncImprovedMerchant supplied separately are not part of this `wow12.0` feature port.
 
-RothUI fill textures and adapted `rLayout` features are credited in `LICENSE`. The new art assets were generated for this addon. This is an independent compatibility starter, not an upstream release.
+## Commands
+
+| Command | Effect |
+| --- | --- |
+| `/sgui status` | Installed version, client build, module readiness/errors |
+| `/sgui bags` | Toggle unified inventory |
+| `/sgui bars` | Reapply the four-row layout outside combat |
+| `/sgui option focus on/off` | Focus cast sound |
+| `/sgui option vignette on/off` | Minimap vignette alerts |
+| `/sgui option lowhealth on/off` | Low-health glass warning |
+| `/sgui option dispel on/off` | Dispellable-debuff glass warning |
+| `/sgui option visibility on/off` | Optional Roth auxiliary visibility; off by default |
+| `/sgui show` / `hide` | Show/hide orb HUD |
+| `/sgui art` | Toggle orb figure artwork |
+| `/sgui scale 0.8` | HUD scale from 0.5 to 1.5, outside combat |
+| `/sgui unlock` / `lock` | Move HUD using center handle |
+| `/sgui playerframe hide` / `show` | Hide/restore Blizzard player unit frame using a secure visibility driver |
+
+`/seraphglass` is an alias. New toggles use `SeraphglassDB` SavedVariables; persistence depends on the beta client's save/restore behavior. Enabling native combined bags and additional bars changes their Blizzard preferences.
+
+## Validation and limits
+
+Run `luahbtex --luaonly RegressionTests.lua` from the addon folder. The regression harness checks the actual Forever intrinsic/template distinction, all 19 equipment IDs/icons, empty-slot restoration and clicks, delayed native loading, combat deferral, combined-mode CVar reentry, unified open/close, repeat initialization, and 20 visible empty action slots. This file is not loaded by the addon.
+
+All shipped Lua files pass syntax checks. These checks are **not a WoW runtime test**: restricted execution, native aura rendering, bag interactions in combat, Edit Mode and visual alignment need an in-game check. If something fails, run `/console scriptErrors 1`, then `/reload`, and send the exact error plus `/sgui status` output. Optional APIs report unavailable instead of preventing inventory loading.
+
+RothUI fill textures and adapted code are credited to zork/Erik Raetz under the included MIT license. Angel/figure art was generated for this independent addon.

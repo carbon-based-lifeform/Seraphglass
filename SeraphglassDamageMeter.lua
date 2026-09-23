@@ -1,4 +1,5 @@
 -- Tint the native Damage Meter and retain its buttons, rows and resize logic.
+local _, S = ...
 local hooked = false
 
 local function isSafe(frame)
@@ -64,6 +65,7 @@ end
 local function apply()
   if InCombatLockdown and InCombatLockdown() then return end
   for index = 1, 3 do styleWindow(_G["DamageMeterSessionWindow" .. index]) end
+  S.Report("Damage meter", DamageMeterSessionWindow1 and "ready" or "waiting for native meter")
   if not hooked and hooksecurefunc and DamageMeterSessionWindowMixin then
     hooked = true
     hooksecurefunc(DamageMeterSessionWindowMixin, "OnShow", styleWindow)

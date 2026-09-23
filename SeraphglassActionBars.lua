@@ -1,6 +1,6 @@
 -- Four native Blizzard action bars, five buttons each. Layout changes are
 -- made out of combat; Blizzard still owns clicks, paging, spells and keybinds.
-local ADDON = ...
+local ADDON, S = ...
 local artworkPath = "Interface\\AddOns\\" .. ADDON .. "\\media\\seraph_action_center.png"
 local hud = _G.SeraphglassHUD
 local columns = {
@@ -83,6 +83,12 @@ local function layoutBar(entry)
     if bar.BorderArt then bar.BorderArt:Hide() end
     if bar.ActionBarPageNumber then bar.ActionBarPageNumber:Hide() end
   end
+  -- Set the native grid attribute out of combat: SetShowGrid ignores calls
+  -- from insecure addon code, which otherwise leaves empty slots invisible.
+  for _, button in ipairs(bar.actionButtons) do
+    local grid = button:GetAttribute("showgrid") or 0
+    button:SetAttribute("showgrid", bit.bor(grid, ACTION_BUTTON_SHOW_GRID_REASON_CVAR or 1))
+  end
   bar:UpdateShownButtons()
   bar:UpdateGridLayout()
   -- Use the orb HUD as the reference so moving the HUD moves the whole set.
@@ -90,6 +96,7 @@ local function layoutBar(entry)
   bar:SetPoint("CENTER", hud, "CENTER", entry.x, entry.y)
   bar:SetScale(0.85)
   for index = 1, 5 do styleButton(_G[entry.prefix .. index]) end
+  return true
 end
 
 local function updateArtVisibility()
@@ -101,7 +108,11 @@ local applying = false
 local function apply()
   if applying or (InCombatLockdown and InCombatLockdown()) then return end
   applying = true
-  for _, entry in ipairs(columns) do layoutBar(entry) end
+  local ready = 0
+  for _, entry in ipairs(columns) do
+    if layoutBar(entry) then ready = ready + 1 end
+  end
+  S.Report("Action bars", ready == 4 and "ready: four rows of five" or "waiting for native bars (" .. ready .. "/4)")
   for _, prefix in ipairs(others) do
     local count = prefix == "StanceButton" and 10 or 12
     for index = 1, count do styleButton(_G[prefix .. index]) end
@@ -109,6 +120,13 @@ local function apply()
   updateArtVisibility()
   applying = false
 end
+
+local rawApply = apply
+apply = function()
+  S.Run("Action bars", rawApply)
+  applying = false
+end
+S.commands.bars = apply
 
 local hooked = false
 local function hookEditMode()
