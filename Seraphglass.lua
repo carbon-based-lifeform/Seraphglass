@@ -18,6 +18,7 @@ right:SetSize(256, 256)
 right:SetPoint("CENTER", hud, "CENTER", 400, 0)
 
 local artwork = {}
+S.animations, S.orbLayers = {}, {}
 local function ornament(frame, file, xOffset)
   -- Draw the metal behind the globe. The fill covers the inside edge of the
   -- sculpture, leaving a close-fitting rim without shrinking the liquid.
@@ -35,6 +36,7 @@ local function liquidMotion(texture, degrees, duration)
   rotation:SetDuration(duration)
   group:SetLooping("REPEAT")
   group:Play()
+  S.animations[#S.animations+1] = group
 end
 
 local function orb(frame, color, artFile, artOffset)
@@ -60,15 +62,23 @@ local function orb(frame, color, artFile, artOffset)
   clip:SetFrameLevel(bar:GetFrameLevel() + 1)
   clip:SetPoint("TOPLEFT", bar:GetStatusBarTexture(), "TOPLEFT")
   clip:SetPoint("BOTTOMRIGHT", bar:GetStatusBarTexture(), "BOTTOMRIGHT")
-  for index = 1, 2 do
+  local swirls = {}
+  local mask = clip:CreateMaskTexture(nil, "ARTWORK")
+  mask:SetSize(190, 190)
+  mask:SetPoint("CENTER", frame, "CENTER")
+  mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+  for index = 1, 3 do
     local current = index
     local swirl = clip:CreateTexture(nil, "ARTWORK")
     swirl:SetSize(190, 190)
     swirl:SetPoint("CENTER", frame, "CENTER")
     swirl:SetTexture(MEDIA .. "liquid_swirl.png")
     swirl:SetBlendMode("ADD")
-    swirl:SetAlpha(current == 1 and 0.14 or 0.08)
-    liquidMotion(swirl, current == 1 and 360 or -360, current == 1 and 23 or 37)
+    swirl:AddMaskTexture(mask)
+    swirl:SetVertexColor(color[1], color[2], color[3])
+    swirl:SetAlpha(current == 1 and 0.24 or current == 2 and 0.14 or 0.06)
+    swirls[#swirls+1] = swirl
+    liquidMotion(swirl, current == 2 and -360 or 360, ({17, 29, 43})[current])
   end
 
   local front = CreateFrame("Frame", nil, frame)
@@ -94,6 +104,8 @@ local function orb(frame, color, artFile, artOffset)
   fade:SetDuration(3.2)
   pulse:SetLooping("BOUNCE")
   pulse:Play()
+  S.animations[#S.animations+1] = pulse
+  S.orbLayers[#S.orbLayers+1] = {frame=frame, bar=bar, clip=clip, front=front, mask=mask, swirls=swirls}
 
   return bar
 end
@@ -137,35 +149,13 @@ local function maskToOrb(texture)
   texture:AddMaskTexture(mask)
 end
 
-local shield = CreateFrame("StatusBar", nil, predictionClip)
-shield:SetSize(190, 190)
-shield:SetOrientation("VERTICAL")
-shield:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-shield:GetStatusBarTexture():SetAtlas("raidframe-shield-fill")
-shield:SetStatusBarColor(0.83, 0.92, 1)
-shield:SetPoint("BOTTOM", health:GetStatusBarTexture(), "TOP")
-maskToOrb(shield:GetStatusBarTexture())
-
-local shieldPattern = predictionClip:CreateTexture(nil, "ARTWORK", nil, 2)
-shieldPattern:SetAtlas("RaidFrame-Shield-Overlay")
-shieldPattern:SetAllPoints(shield:GetStatusBarTexture())
-shieldPattern:SetAlpha(0.62)
-maskToOrb(shieldPattern)
-
 local incomingHeal = CreateFrame("StatusBar", nil, predictionClip)
 incomingHeal:SetSize(190, 190)
 incomingHeal:SetOrientation("VERTICAL")
 incomingHeal:SetStatusBarTexture(MEDIA .. "orb_filling15")
 incomingHeal:SetStatusBarColor(0.32, 0.86, 0.56)
-incomingHeal:SetPoint("BOTTOM", shield:GetStatusBarTexture(), "TOP")
+incomingHeal:SetPoint("BOTTOM", health:GetStatusBarTexture(), "TOP")
 maskToOrb(incomingHeal:GetStatusBarTexture())
-
-local overshield = predictionClip:CreateTexture(nil, "OVERLAY", nil, 3)
-overshield:SetAtlas("RaidFrame-Shield-Overshield")
-overshield:SetBlendMode("ADD")
-overshield:SetSize(24, 54)
-overshield:SetPoint("TOP", predictionClip, "TOP", 0, 7)
-overshield:Hide()
 
 local function isReadableNumber(value)
   if issecretvalue and issecretvalue(value) then return false end
@@ -236,25 +226,11 @@ local function startFlash(value)
 end
 
 local function updatePrediction()
-  if not UnitHealthMax or not UnitGetIncomingHeals or not UnitGetTotalAbsorbs then return end
-  local maximum = UnitHealthMax("player")
-  local absorbAmount = valueOrZero(UnitGetTotalAbsorbs("player"))
-  local healAmount = valueOrZero(UnitGetIncomingHeals("player"))
-  shield:SetMinMaxValues(0, maximum)
-  shield:SetValue(absorbAmount)
-  incomingHeal:SetMinMaxValues(0, maximum)
-  incomingHeal:SetValue(healAmount)
-
-  -- The native shield bar may be larger than the remaining globe. Its
-  -- parent clips overflow without doing arithmetic on secret values.
-  -- Outside restricted combat a small Blizzard overshield glow marks it.
-  if isReadableNumber(maximum) and isReadableNumber(absorbAmount)
-      and isReadableNumber(previousHealth)
-      and absorbAmount > 0 and previousHealth + absorbAmount > maximum then
-    overshield:Show()
-  else
-    overshield:Hide()
+  if UnitGetIncomingHeals then
+    incomingHeal:SetMinMaxValues(0, UnitHealthMax("player"))
+    incomingHeal:SetValue(valueOrZero(UnitGetIncomingHeals("player")))
   end
+  if S.UpdateShield then S.UpdateShield() end
 end
 
 -- Keep the usual player unit interactions if the Blizzard frame is hidden.
@@ -304,7 +280,7 @@ end)
 mover:SetScript("OnDragStop", function() hud:StopMovingOrSizing() end)
 mover:Hide()
 
-local hideBlizzardPlayer = true
+local hideBlizzardPlayer = false
 local pendingBlizzardPlayer = false
 local playerFrameHooked = false
 local playerFrameDriver = false
@@ -389,6 +365,7 @@ local function updateHealth(resetAnimation)
     startFlash(previousHealth)
   end
   health:SetValue(current)
+  if S.UpdateLowHealth then S.UpdateLowHealth() end
   previousHealth = current
   hasPreviousHealth = true
   updatePrediction()
@@ -397,7 +374,15 @@ end
 local function updatePower()
   if not UnitPowerType or not UnitPower or not UnitPowerMax then return end
   local powerID, token = UnitPowerType("player")
-  local color = powerColors[token] or powerColors.MANA
+  local color = powerColors.MANA
+  if not S.Secret(token) then color = powerColors[token] or color end
+  if S.colorMode == "custom" then color = S.customColor
+  elseif S.colorMode == "class" then
+    local _, class = UnitClass("player")
+    local c = not S.Secret(class) and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    if c then color = {c.r, c.g, c.b} end
+  end
+  for _, swirl in ipairs(S.orbLayers[2].swirls) do swirl:SetVertexColor(color[1],color[2],color[3]) end
   power:SetStatusBarColor(color[1], color[2], color[3])
   power:SetMinMaxValues(0, UnitPowerMax("player", powerID))
   power:SetValue(UnitPower("player", powerID), Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut)
@@ -441,6 +426,9 @@ SLASH_SERAPHGLASS1 = "/sgui"
 SLASH_SERAPHGLASS2 = "/seraphglass"
 SlashCmdList.SERAPHGLASS = function(message)
   local command, argument = (message or ""):match("^(%S*)%s*(.-)%s*$")
+  if (command == "show" or command == "hide" or command == "scale" or command == "unlock") and InCombatLockdown() then
+    print("Seraphglass: change the orb layout outside combat"); return
+  end
   if S.commands[command] then
     S.commands[command](argument)
   elseif command == "show" then
@@ -448,8 +436,8 @@ SlashCmdList.SERAPHGLASS = function(message)
   elseif command == "hide" then
     hud:Hide()
   elseif command == "art" then
-    local visible = not artwork[1]:IsShown()
-    for _, texture in ipairs(artwork) do texture:SetShown(visible) end
+    S.options.figures = not S.options.figures
+    S.Apply()
   elseif command == "scale" then
     local scale = tonumber(argument)
     if scale and scale >= 0.5 and scale <= 1.5 then
@@ -476,8 +464,14 @@ SlashCmdList.SERAPHGLASS = function(message)
       print("Seraphglass: /sgui playerframe hide | show")
     end
   else
-    print("Seraphglass: /sgui show | hide | art | scale 0.5-1.5 | unlock | lock | playerframe hide/show")
+    print("Seraphglass Orbs: /sgui status | option | color | show | hide | art | scale 0.5-1.5 | unlock | lock | playerframe hide/show")
   end
 end
 
 S.Report("Orbs", "ready")
+
+S.hud, S.left, S.right = hud, left, right
+S.ApplyHUD = function()
+  for _, texture in ipairs(artwork) do texture:SetShown(S.options.figures) end
+  updatePower()
+end

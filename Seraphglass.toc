@@ -1,16 +1,12 @@
 ## Interface: 16001
-## Title: Seraphglass
-## Notes: Liquid orbs, unified inventory, four angel action bars and dark fantasy details
-## Author: RothUI fill textures by zork; new orb artwork and Forever port
-## Version: 0.15.0-beta
+## Title: Seraphglass Orbs
+## Notes: Living glass health and power orbs, shield crescent, cast ring and resource gems
+## Author: Seraphglass; RothUI textures and model references by zork
+## Version: 0.20.0-beta
 ## X-Source: https://github.com/zorker/rothui/tree/master/wow12.0
-
 ## SavedVariables: SeraphglassDB
 
 SeraphglassCore.lua
 Seraphglass.lua
-SeraphglassInventory.lua
-SeraphglassActionBars.lua
-SeraphglassDamageMeter.lua
-SeraphglassRothDetails.lua
-SeraphglassAlerts.lua
+SeraphglassEffects.lua
+SeraphglassResources.lua
