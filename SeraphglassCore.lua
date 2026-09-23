@@ -1,9 +1,10 @@
 local ADDON, S = ...
-S.version = "0.20.0-beta"
+S.version = "0.21.0-beta"
 S.media = "Interface\\AddOns\\" .. ADDON .. "\\media\\"
 S.status, S.commands, S.options = {}, {}, {}
-S.defaults = { motion = true, lowhealth = true, resources = true, models = false, cast = true, figures = true }
+S.defaults = { motion = true, lowhealth = true, resources = true, indicators = true, cast = true, figures = true }
 for key, value in pairs(S.defaults) do S.options[key] = value end
+S.hidePlayer = true
 S.colorMode, S.customColor = "power", {0.15, 0.4, 1}
 function S.Secret(value) return issecretvalue and issecretvalue(value) end
 function S.Readable(value) return not S.Secret(value) and type(value) == "number" end
@@ -20,7 +21,7 @@ end
 function S.Status()
   local version, build = GetBuildInfo()
   print("Seraphglass Orbs " .. S.version .. " / " .. version .. " build " .. build)
-  for _, name in ipairs({"Orbs", "Effects", "Shield", "Cast ring", "Resources", "Models"}) do
+  for _, name in ipairs({"Orbs", "Effects", "Shield", "Cast ring", "Resources", "Indicators"}) do
     print(name .. ": " .. (S.status[name] or "waiting"))
   end
 end
@@ -30,11 +31,14 @@ function S.Save()
   SeraphglassDB.orbs = SeraphglassDB.orbs or {}
   local db = SeraphglassDB.orbs
   db.options, db.colorMode, db.customColor = S.options, S.colorMode, S.customColor
+  db.hidePlayer = S.hidePlayer
+  if S.layout then db.layout = S.layout end
 end
 function S.Apply()
   if S.ApplyVisuals then S.ApplyVisuals() end
   if S.ApplyResources then S.ApplyResources() end
   if S.ApplyHUD then S.ApplyHUD() end
+  if S.ApplyIndicators then S.ApplyIndicators() end
   S.Save()
 end
 S.commands.option = function(argument)
@@ -42,7 +46,7 @@ S.commands.option = function(argument)
   if S.defaults[key] ~= nil and (value == "on" or value == "off") then
     S.options[key] = value == "on"; S.Apply()
     print("Seraphglass: " .. key .. " " .. value)
-  else print("/sgui option motion|lowhealth|resources|models|cast|figures on|off") end
+  else print("/sgui option motion|lowhealth|resources|indicators|cast|figures on|off") end
 end
 S.commands.color = function(argument)
   if argument == "power" or argument == "class" then S.colorMode = argument
@@ -73,6 +77,8 @@ loader:SetScript("OnEvent", function(_, event, name)
       for i=1,3 do if type(c[i]) ~= "number" or c[i]<0 or c[i]>1 then valid=false end end
       if valid then S.customColor = {c[1],c[2],c[3]} end
     end
+    if type(db.hidePlayer) == "boolean" then S.hidePlayer = db.hidePlayer end
+    if S.LoadLayout then S.LoadLayout(db.layout) end
     -- Old whole-UI options are retired; never restore their side effects.
     SeraphglassDB.options = nil
     S.Save()

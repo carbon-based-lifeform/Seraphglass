@@ -12,6 +12,9 @@ function CreateFrame(kind,name,parent,template)
  assert(template==nil or template=='SecureUnitButtonTemplate' or template=='CooldownFrameTemplate', 'unknown template '..tostring(template))
  local f=object(kind,name,parent); frames[#frames+1]=f; return f
 end
+function methods:IsPlaying() return self.playing end
+function methods:GetCenter() return self.centerX or 600,self.centerY or 300 end
+function methods:GetEffectiveScale() return self.scale or 1 end
 function methods:GetName() return self.name end
 function methods:GetParent() return self.parent end
 function methods:SetScript(e,f) self.scripts[e]=f end
@@ -73,7 +76,23 @@ UnitClass=function() return 'Paladin','PALADIN' end
 RAID_CLASS_COLORS={PALADIN={r=1,g=0.5,b=0.7}}
 UnitGetTotalAbsorbs=function() return 130 end
 UnitGetIncomingHeals=function() return 20 end
-InCombatLockdown=function() return false end
+local combat,rest,dead,rez,grouped,leader,assistant,pvp,marker=false,true,false,false,false,false,false,false,nil
+InCombatLockdown=function() return combat end
+UnitAffectingCombat=function() return combat end
+IsResting=function() return rest end
+UnitIsDeadOrGhost=function() return dead end
+UnitHasIncomingResurrection=function() return rez end
+IsInGroup=function() return grouped end
+UnitIsGroupLeader=function() return leader end
+UnitIsGroupAssistant=function() return assistant end
+UnitGroupRolesAssigned=function() return 'HEALER' end
+GetTexCoordsForRoleSmallCircle=function() return 0,1,0,1 end
+UnitFactionGroup=function() return 'Alliance' end
+UnitIsPVP=function() return pvp end
+GetRaidTargetIndex=function() return marker end
+SetRaidTargetIconTexture=function(texture,index) texture.raidIndex=index end
+RegisterStateDriver=function(frame,state,condition) frame.driver=condition end
+UnregisterStateDriver=function(frame) frame.driver=nil end
 GetBuildInfo=function() return '1.60.1','69977' end
 GetTime=function() return 15 end
 local casting=false
@@ -85,15 +104,42 @@ UnitCastingDuration=function() return duration end
 SetCVar=function() error('orb addon must not change CVars') end
 Settings={SetValue=function() error('orb addon must not change native bars') end}
 PlayerFrame=CreateFrame('Frame','PlayerFrame')
-PlayerFrame.Hide=function() error('native player frame hidden by default') end
+-- Simulate upgrading from the old model option plus saved orb placement.
+SeraphglassDB={orbs={options={models=true},layout={health={x=330,y=220,scale=0.8},power={x=1000,y=220,scale=1}}}}
 local S={}
 for line in io.lines('Seraphglass.toc') do
  if line:match('%.lua$') then assert(loadfile(line))('Seraphglass',S) end
 end
 event('ADDON_LOADED','Seraphglass'); event('PLAYER_LOGIN');event('PLAYER_ENTERING_WORLD')
-assert(S.version=='0.20.0-beta')
+assert(S.version=='0.21.0-beta')
 assert(not SeraphglassInventory and not SeraphglassAngelActionArt)
-assert(S.options.models==false)
+assert(S.options.models==nil,'retired model option must not migrate')
+for _,f in ipairs(frames) do assert(f.kind~='PlayerModel','square model viewport removed') end
+assert(not PlayerFrame.shown and PlayerFrame.driver=='hide','native player frame hidden with secure driver')
+assert(S.left.point[4]==330/0.8 and S.right.point[4]==1000,'restore independent positions')
+assert(S.indicators.rest.shown and not S.indicators.combat.shown)
+combat=true;event('PLAYER_REGEN_DISABLED')
+assert(S.indicators.combat.shown and S.indicators.combat.pulse.playing and not S.indicators.rest.shown)
+SlashCmdList.SERAPHGLASS('playerframe show')
+assert(not PlayerFrame.shown,'protected frame update deferred in combat')
+SlashCmdList.SERAPHGLASS('unlock');assert(not S.movers.health.shown)
+combat=false;event('PLAYER_REGEN_ENABLED');assert(PlayerFrame.shown)
+SlashCmdList.SERAPHGLASS('playerframe hide');assert(not PlayerFrame.shown and SeraphglassDB.orbs.hidePlayer)
+SlashCmdList.SERAPHGLASS('unlock');assert(S.movers.health.shown and S.movers.power.shown)
+S.left.centerX,S.left.centerY=800,500
+local oldPowerX=S.layout.power.x
+S.movers.health.scripts.OnDragStop()
+assert(S.layout.health.x==640 and S.layout.health.y==400 and S.layout.power.x==oldPowerX,'health drag must not move power orb')
+assert(SeraphglassDB.orbs.layout.health.x==640,'position saved')
+SlashCmdList.SERAPHGLASS('lock');assert(not S.movers.health.shown)
+S.commands.reset();assert(S.layout.health.x==nil and S.layout.power.x==nil)
+grouped,leader,pvp,marker=true,true,true,8;event('GROUP_ROSTER_UPDATE')
+assert(S.indicators.leader.shown and S.indicators.role.shown and S.indicators.pvp.shown and S.indicators.marker.shown)
+dead=true;event('PLAYER_DEAD');assert(S.indicators.death.shown and not S.indicators.rest.shown)
+rez=true;event('INCOMING_RESURRECT_CHANGED','player');assert(S.indicators.resurrection.shown and not S.indicators.death.shown)
+S.commands.option('motion off');assert(not S.indicators.resurrection.pulse.playing and S.indicators.resurrection.shown)
+S.commands.option('indicators off');for _,f in pairs(S.indicators) do assert(not f.shown) end
+S.commands.option('indicators on')
 assert(S.orbLayers[1].bar.value==75)
 for _,layer in ipairs(S.orbLayers) do
  assert(#layer.swirls==3)
@@ -114,4 +160,4 @@ for _,f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,0.0
 assert(S.status['Cast ring']=='ready: player casts/channels',tostring(S.status['Cast ring']))
 casting=false;event('UNIT_SPELLCAST_STOP','player')
 assert(S.status.Resources:match('ready'))
-print('PASS: orb-only startup, circular masks, overcap inputs, colors, reduced motion, opaque health/resources/cast duration')
+print('PASS: independent saved orb layout, model removal, secure player-frame hiding, status indicator transitions; orb-only startup, circular masks, overcap inputs, colors, reduced motion, opaque health/resources/cast duration')

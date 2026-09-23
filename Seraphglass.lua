@@ -257,30 +257,6 @@ end
 playerButton(left, "SeraphglassHealthButton")
 playerButton(right, "SeraphglassPowerButton")
 
--- Moving is deliberately session only while the Forever beta has unreliable
--- SavedVariables loading. The handle is present only when explicitly unlocked.
-hud:SetMovable(true)
-hud:SetClampedToScreen(true)
-local mover = CreateFrame("Button", nil, hud)
-mover:SetFrameStrata("DIALOG")
-mover:SetSize(160, 28)
-mover:SetPoint("CENTER", hud, "CENTER", 0, 40)
-mover:EnableMouse(true)
-mover:RegisterForDrag("LeftButton")
-local moverBackground = mover:CreateTexture(nil, "BACKGROUND")
-moverBackground:SetAllPoints(mover)
-moverBackground:SetColorTexture(0.15, 0.08, 0.02, 0.85)
-local moverLabel = mover:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-moverLabel:SetPoint("CENTER")
-moverLabel:SetText("Drag Seraphglass here")
-mover:SetScript("OnDragStart", function()
-  if InCombatLockdown and InCombatLockdown() then return end
-  hud:StartMoving()
-end)
-mover:SetScript("OnDragStop", function() hud:StopMovingOrSizing() end)
-mover:Hide()
-
-local hideBlizzardPlayer = false
 local pendingBlizzardPlayer = false
 local playerFrameHooked = false
 local playerFrameDriver = false
@@ -291,7 +267,7 @@ local function updateBlizzardPlayer()
     return
   end
   pendingBlizzardPlayer = false
-  if hideBlizzardPlayer then
+  if S.hidePlayer then
     -- The secure visibility driver survives combat and Blizzard's own Show
     -- calls. A Show hook alone cannot hide a protected unit frame in combat.
     if RegisterStateDriver and not playerFrameDriver then
@@ -300,7 +276,7 @@ local function updateBlizzardPlayer()
     elseif not playerFrameHooked and hooksecurefunc then
       playerFrameHooked = true
       hooksecurefunc(PlayerFrame, "Show", function(frame)
-        if hideBlizzardPlayer then
+        if S.hidePlayer then
           if InCombatLockdown and InCombatLockdown() then
             pendingBlizzardPlayer = true
           else
@@ -403,9 +379,9 @@ events:SetScript("OnEvent", function(_, event, unit)
   if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
     updateHealth(true)
     updatePower()
-    if hideBlizzardPlayer then updateBlizzardPlayer() end
+    if S.hidePlayer then updateBlizzardPlayer() end
   elseif event == "ADDON_LOADED" then
-    if hideBlizzardPlayer and PlayerFrame then updateBlizzardPlayer() end
+    if S.hidePlayer and PlayerFrame then updateBlizzardPlayer() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if pendingBlizzardPlayer then updateBlizzardPlayer() end
     updatePrediction()
@@ -426,7 +402,7 @@ SLASH_SERAPHGLASS1 = "/sgui"
 SLASH_SERAPHGLASS2 = "/seraphglass"
 SlashCmdList.SERAPHGLASS = function(message)
   local command, argument = (message or ""):match("^(%S*)%s*(.-)%s*$")
-  if (command == "show" or command == "hide" or command == "scale" or command == "unlock") and InCombatLockdown() then
+  if (command == "show" or command == "hide" or command == "scale" or command == "unlock" or command == "lock" or command == "reset") and InCombatLockdown() then
     print("Seraphglass: change the orb layout outside combat"); return
   end
   if S.commands[command] then
@@ -444,18 +420,19 @@ SlashCmdList.SERAPHGLASS = function(message)
       if InCombatLockdown and InCombatLockdown() then
         print("Seraphglass: move or scale the HUD outside combat")
       else
-        hud:SetScale(scale)
+        S.SetOrbScale(scale)
       end
     else
       print("Seraphglass: scale must be from 0.5 to 1.5")
     end
   elseif command == "unlock" then
-    mover:Show()
+    S.SetUnlocked(true)
   elseif command == "lock" then
-    mover:Hide()
+    S.SetUnlocked(false)
   elseif command == "playerframe" then
     if argument == "hide" or argument == "show" then
-      hideBlizzardPlayer = argument == "hide"
+      S.hidePlayer = argument == "hide"
+      S.Save()
       updateBlizzardPlayer()
       if pendingBlizzardPlayer then
         print("Seraphglass: player frame change queued until combat ends")
@@ -474,4 +451,5 @@ S.hud, S.left, S.right = hud, left, right
 S.ApplyHUD = function()
   for _, texture in ipairs(artwork) do texture:SetShown(S.options.figures) end
   updatePower()
+  updateBlizzardPlayer()
 end

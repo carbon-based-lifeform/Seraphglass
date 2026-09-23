@@ -1,12 +1,14 @@
 ## Interface: 16001
 ## Title: Seraphglass Orbs
 ## Notes: Living glass health and power orbs, shield crescent, cast ring and resource gems
-## Author: Seraphglass; RothUI textures and model references by zork
-## Version: 0.20.0-beta
+## Author: Seraphglass; RothUI textures by zork
+## Version: 0.21.0-beta
 ## X-Source: https://github.com/zorker/rothui/tree/master/wow12.0
 ## SavedVariables: SeraphglassDB
 
 SeraphglassCore.lua
 Seraphglass.lua
+SeraphglassLayout.lua
 SeraphglassEffects.lua
 SeraphglassResources.lua
+SeraphglassIndicators.lua

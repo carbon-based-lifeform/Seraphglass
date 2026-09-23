@@ -72,7 +72,7 @@ end
 
 -- Twelve small motes per orb. Motion is purely cosmetic, capped at 30 Hz;
 -- both the native fill clip and circular mask trim every particle.
-local particles, models = {}, {}
+local particles = {}
 for index, layer in ipairs(S.orbLayers) do
   for i=1,12 do
     local p = layer.clip:CreateTexture(nil,"OVERLAY",nil,1)
@@ -98,32 +98,6 @@ local function animate(_, elapsed)
   end
 end
 
--- Optional native spell models from Roth's model catalogue. Inscribed square
--- viewports keep the model inside the sphere; liquid/gloss remain in front.
-local function configureModels()
-  if not S.options.models or not S.options.motion then
-    for _, model in ipairs(models) do model:Hide() end
-    S.Report("Models","off (optional native spell effects)"); return
-  end
-  if #models==0 then
-    for i,layer in ipairs(S.orbLayers) do
-      local model = CreateFrame("PlayerModel",nil,layer.clip)
-      model:SetSize(130,130); model:SetPoint("CENTER",layer.frame,"CENTER")
-      model:SetAlpha(0.20); model:EnableMouse(false)
-      model:SetFrameLevel(layer.front:GetFrameLevel()-1)
-      local function load(self)
-        self:SetModel(i==1 and 4544400 or 2030216)
-        self:SetCameraPosition(i==1 and 14.4006 or 2.5282,0,0)
-        self:SetCameraTarget(0,0,0)
-      end
-      model:SetScript("OnShow", load)
-      models[#models+1]=model
-      load(model)
-    end
-  end
-  for _,model in ipairs(models) do model:Show() end
-  S.Report("Models","enabled: client spell assets; appearance needs in-game check")
-end
 function S.ApplyVisuals()
   for _,group in ipairs(S.animations) do
     if S.options.motion then group:Play() else group:Stop() end
@@ -132,6 +106,5 @@ function S.ApplyVisuals()
   ticker:SetScript("OnUpdate",S.options.motion and animate or nil)
   for _,p in ipairs(particles) do p.texture:SetShown(S.options.motion) end
   S.UpdateLowHealth(); S.UpdateShield()
-  S.Run("Models",configureModels)
   S.Report("Effects",S.options.motion and "layered liquid + motes + 20% pulse" or "reduced motion; static low-health warning")
 end
